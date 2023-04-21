@@ -30,14 +30,21 @@ def get_room_id (webex_rooms_json, room_name):
     return room_id
 
 def get_messages (room_id):
-    webex_messages=None
     if room_id is not None:
         webex_messages = webex_session.get(url=WEBEX_API+"messages?roomId={}".format(room_id))
-    return webex_messages.json()
+        webex_messages_list = (webex_messages.json())['items']
+        pages = 0
+        while webex_messages.headers.get('link'):
+            link = (webex_messages.headers['link']).split(';')[0][1:-1]
+            webex_messages = webex_session.get(url=link)
+            webex_messages_list.append((webex_messages.json())['items'])
+            pages += 1
+            print('message count {}, collecting messages page: {} link {}'.format(len(webex_messages_list),pages, link))
+    return webex_messages_list
 
 def dump_to_file(webex_messages, filename):
     with open(filename, 'w') as f:
-        f.write(str(webex_messages['items']))
+        f.write(str(webex_messages))
 
 webex_rooms = webex_session.get(url=WEBEX_API+"rooms")
 if webex_rooms.status_code != 200:
@@ -52,10 +59,10 @@ while webex_rooms.headers.get('link') and room_id is None:
     webex_rooms =  webex_session.get(url=link)
     room_id = get_room_id(webex_rooms.json(), WEBEX_ROOMNAME)
     pages += 1
-    print('searching page: {} link {}'.format(pages, link))
+    print('searching rooms page: {} link {}'.format(pages, link))
 
 webex_messages = get_messages(room_id)
 
 dump_to_file(webex_messages, FILE_OUT)
 
-print ('wrote {} messages to file {}'.format(len(webex_messages['items']), FILE_OUT))
+print ('wrote {} messages to file {}'.format(len(webex_messages), FILE_OUT))
